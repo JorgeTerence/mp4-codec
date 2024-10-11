@@ -1,19 +1,28 @@
 use core::str;
 use std::{
-    fs,
+    fs::{self, File},
     io::{Read, Seek, SeekFrom},
 };
+use uuid::Uuid;
 
 fn main() {
     let mut input_file = fs::File::open("./sample/01.mp4").unwrap();
-    input_file.read_exact(&mut [0; 4]).unwrap();
+
+    skip_four_bytes(&mut input_file);
+
     read_atom(&mut input_file);
-    input_file.read_exact(&mut [0; 4]).unwrap();
-    let buf: &mut [u8; 10] = &mut [0; 10];
+
+    skip_four_bytes(&mut input_file);
+
+    read_atom(&mut input_file);
+
+    skip_four_bytes(&mut input_file);
+
+    read_atom(&mut input_file);
+
+    let buf = &mut [0; 500];
     input_file.read_exact(buf).unwrap();
     println!("{}", buf.iter().map(|n| *n as char).collect::<String>());
-    // input_file.seek(pos)
-    read_atom(&mut input_file);
 }
 
 fn read_atom(file: &mut fs::File) {
@@ -22,7 +31,7 @@ fn read_atom(file: &mut fs::File) {
 
     match str::from_utf8(box_label).unwrap() {
         "ftyp" => {
-            let buf: &mut [u8; 4] = &mut [0; 4];
+            let buf = &mut [0; 4];
 
             file.read_exact(buf).unwrap();
             let major = String::from_utf8(buf.to_vec()).unwrap();
@@ -40,17 +49,39 @@ fn read_atom(file: &mut fs::File) {
                 major, minor, compatibility1, compatibility2
             );
         }
+        "uuid" => {
+            let buf = &mut [42; 16];
+
+            file.read_exact(buf).unwrap();
+            let id = Uuid::from_bytes(*buf).to_string();
+
+            file.read_exact(buf).unwrap();
+            let gpac_version = str::from_utf8(&buf[4..]).unwrap();
+
+            println!("[uuid]\n{}\n{}", id, gpac_version);
+        }
+        "mdat" => {
+            let buf = &mut [0; 4];
+
+            skip_four_bytes(file);
+
+            file.read_exact(buf).unwrap();
+            let size = i32::from_le_bytes(*buf);
+            let size_be = i32::from_be_bytes(*buf);
+
+            println!("[mdat]\nsize = {}(le) or {}(be)", size, size_be)
+        }
         unknown => {
             println!("{}", unknown)
         }
     };
 }
 
-fn skip_padding(file: &mut fs::File) {
-    let mut pos = file
-        .seek(SeekFrom::Current(0))
-        .expect("Failed to locate cursor position");
+fn skip_four_bytes(file: &mut File) {
+    file.read_exact(&mut [0; 4]).unwrap();
+}
 
+fn _skip_padding(file: &mut fs::File) {
     loop {
         let byte = &mut [0 as u8];
         file.read_exact(byte).expect("Failed to read from file");
@@ -62,7 +93,8 @@ fn skip_padding(file: &mut fs::File) {
 
             file.seek(SeekFrom::Current(pos as i64 - 1))
                 .expect("Failed to set cursor position");
+
+            return;
         }
-        pos += 1;
     }
 }
