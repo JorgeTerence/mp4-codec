@@ -20,9 +20,25 @@ fn main() {
 
     read_atom(&mut input_file);
 
-    let buf = &mut [0; 500];
-    input_file.read_exact(buf).unwrap();
-    println!("{}", buf.iter().map(|n| *n as char).collect::<String>());
+    // let buf = &mut [0; 500];
+    // input_file.read_exact(buf).unwrap();
+    // println!("{}", buf.iter().map(|n| *n as char).collect::<String>());
+    input_file.seek(SeekFrom::Start(0)).unwrap();
+
+    let mut full: Vec<u8> = vec![];
+    match input_file.read_to_end(&mut full) {
+        Ok(_) => (),
+        Err(e) => panic!("Failed to read the entire file: {}", e.to_string()),
+    }
+
+    let full_string = full.iter().map(|b| *b as char).collect::<String>();
+    let index = full_string.find("moov").unwrap();
+
+    let piece = full[index..index + 1]
+        .iter()
+        .map(|c| *c as char)
+        .collect::<String>();
+    println!("{}", piece);
 }
 
 fn read_atom(file: &mut fs::File) {
